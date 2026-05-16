@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenCap Studio — Free Screenshot Annotator</title>
+<meta name="description" content="Free browser-based screenshot annotator. Add arrows, boxes, blur, text, numbered steps. No signup, no upload, works offline.">
+<meta name="keywords" content="screenshot annotator, screenshot tool, annotate image, blur tool, free screenshot editor, browser screenshot">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://screencap-studio.surge.sh/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ScreenCap Studio — Free Screenshot Annotator">
+<meta property="og:description" content="Add arrows, boxes, blur, text, numbered steps to screenshots. Free, no signup, works in browser.">
+<meta property="og:url" content="https://screencap-studio.surge.sh/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ScreenCap Studio — Free Screenshot Annotator">
+<meta name="twitter:description" content="Add arrows, boxes, blur, text, numbered steps to screenshots. Free, no signup, works in browser.">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ScreenCap Studio","applicationCategory":"MultimediaApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Free browser-based screenshot annotator with arrows, boxes, blur, text, and numbered steps."}</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.toolbar{display:flex;align-items:center;gap:4px;padding:8px 12px;background:#1e293b;border-bottom:1px solid #334155;flex-shrink:0}
+.toolbar .brand{font-weight:700;font-size:14px;color:#38bdf8;margin-right:12px;white-space:nowrap}
+.toolbar button{background:#334155;border:1px solid #475569;color:#e2e8f0;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:4px;transition:all .15s}
+.toolbar button:hover{background:#475569}
+.toolbar button.active{background:#3b82f6;border-color:#60a5fa;color:#fff}
+.toolbar button:disabled{opacity:.4;cursor:not-allowed}
+.sep{width:1px;height:24px;background:#475569;margin:0 4px}
+.color-pick{width:28px;height:28px;border:2px solid #475569;border-radius:6px;cursor:pointer;padding:0;background:none}
+.size-ctrl{display:flex;align-items:center;gap:4px;font-size:11px;color:#94a3b8}
+.size-ctrl input{width:50px;background:#1e293b;border:1px solid #475569;color:#e2e8f0;border-radius:4px;padding:2px 4px;font-size:11px}
+.workspace{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;position:relative;background:repeating-conic-gradient(#1e293b 0% 25%,#0f172a 0% 50%) 50%/20px 20px}
+#canvas{box-shadow:0 4px 24px rgba(0,0,0,.5);cursor:crosshair}
+.drop-zone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;pointer-events:none;z-index:10}
+.drop-zone.hidden{display:none}
+.drop-zone .icon{font-size:64px;opacity:.5}
+.drop-zone h2{font-size:24px;font-weight:600;color:#94a3b8}
+.drop-zone p{font-size:14px;color:#64748b}
+.drop-zone .btn-start{pointer-events:auto;background:#3b82f6;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600}
+.drop-zone .btn-start:hover{background:#2563eb}
+.paste-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;padding:6px 16px;border-radius:20px;font-size:12px;color:#64748b;z-index:100}
+.statusbar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:#1e293b;border-top:1px solid #334155;font-size:11px;color:#64748b;flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span class="brand">ScreenCap Studio</span>
+  <button id="btnOpen" title="Open Image (Ctrl+O)">📂 Open</button>
+  <button id="btnPaste" title="Paste (Ctrl+V)">📋 Paste</button>
+  <div class="sep"></div>
+  <button id="btnArrow" class="tool-btn active" data-tool="arrow" title="Arrow (A)">➡ Arrow</button>
+  <button id="btnRect" class="tool-btn" data-tool="rect" title="Rectangle (R)">▭ Rect</button>
+  <button id="btnCircle" class="tool-btn" data-tool="circle" title="Circle (C)">○ Circle</button>
+  <button id="btnText" class="tool-btn" data-tool="text" title="Text (T)">T Text</button>
+  <button id="btnNumber" class="tool-btn" data-tool="number" title="Number (N)">① Number</button>
+  <button id="btnBlur" class="tool-btn" data-tool="blur" title="Blur (B)">🌫 Blur</button>
+  <button id="btnHighlight" class="tool-btn" data-tool="highlight" title="Highlight (H)">🖍 Highlight</button>
+  <div class="sep"></div>
+  <input type="color" id="colorPick" class="color-pick" value="#ef4444" title="Color">
+  <div class="size-ctrl"><span>Size</span><input type="number" id="sizeCtrl" value="3" min="1" max="20"></div>
+  <div class="sep"></div>
+  <button id="btnUndo" title="Undo (Ctrl+Z)">↩ Undo</button>
+  <button id="btnRedo" title="Redo (Ctrl+Y)">↪ Redo</button>
+  <div class="sep"></div>
+  <button id="btnExport" title="Export PNG (Ctrl+S)">💾 Export PNG</button>
+  <button id="btnCopy" title="Copy to Clipboard">📎 Copy</button>
+</div>
+<div class="workspace" id="workspace">
+  <canvas id="canvas" width="900" height="600" style="display:none"></canvas>
+  <div class="drop-zone" id="dropZone">
+    <div class="icon">📸</div>
+    <h2>Drop, paste, or open a screenshot</h2>
+    <p>Ctrl+V to paste from clipboard — or click to browse</p>
+    <button class="btn-start" id="btnBrowse">Choose Image</button>
+  </div>
+</div>
+<div class="paste-hint" id="pasteHint">💡 Ctrl+V to paste screenshot at any time</div>
+<div class="statusbar">
+  <span id="statusInfo">No image loaded</span>
+  <span id="statusPos"></span>
+</div>
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const canvas = $('canvas');
+const ctx = canvas.getContext('2d');
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const statusInfo = $('statusInfo');
+const statusPos = $('statusPos');
+const colorPick = $('colorPick');
+const sizeCtrl = $('sizeCtrl');
+
+let img = null;
+let tool = 'arrow';
+let color = '#ef4444';
+let lineW = 3;
+let annotations = [];
+let redoStack = [];
+let drawing = false;
+let startX, startY, curX, curY;
+let numCounter = 1;
+
+// Tool buttons
+document.querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    tool = btn.dataset.tool;
+    canvas.style.cursor = tool === 'text' ? 'text' : tool === 'blur' ? 'cell' : 'crosshair';
+  });
+});
+
+colorPick.addEventListener('input', e => color = e.target.value);
+sizeCtrl.addEventListener('input', e => lineW = Math.max(1, Math.min(20, parseInt(e.target.value) || 3)));
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const k = e.key.toLowerCase();
+  if (e.ctrlKey && k === 'o') { e.preventDefault(); fileInput.click(); }
+  else if (e.ctrlKey && k === 'z') { e.preventDefault(); undo(); }
+  else if (e.ctrlKey && k === 'y') { e.preventDefault(); redo(); }
+  else if (e.ctrlKey && k === 's') { e.preventDefault(); exportPNG(); }
+  else if (k === 'a') clickTool('arrow');
+  else if (k === 'r') clickTool('rect');
+  else if (k === 'c') clickTool('circle');
+  else if (k === 't') clickTool('text');
+  else if (k === 'n') clickTool('number');
+  else if (k === 'b') clickTool('blur');
+  else if (k === 'h') clickTool('highlight');
+});
+
+function clickTool(t) {
+  const btn = document.querySelector(`[data-tool="${t}"]`);
+  if (btn) btn.click();
+}
+
+// File handling
+$('btnOpen').addEventListener('click', () => fileInput.click());
+$('btnBrowse').addEventListener('click', () => fileInput.click());
+$('btnPaste').addEventListener('click', pasteFromClipboard);
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => loadImage(e.target.result);
+  reader.readAsDataURL(file);
+}
+
+function loadImage(src) {
+  const newImg = new Image();
+  newImg.onload = () => {
+    img = newImg;
+    // Scale down if huge
+    let w = img.width, h = img.height;
+    const maxW = window.innerWidth - 60, maxH = window.innerHeight - 120;
+    if (w > maxW || h > maxH) {
+      const scale = Math.min(maxW / w, maxH / h);
+      w = Math.floor(w * scale);
+      h = Math.floor(h * scale);
+    }
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.display = 'block';
+    dropZone.classList.add('hidden');
+    annotations = [];
+    redoStack = [];
+    numCounter = 1;
+    render();
+    statusInfo.textContent = `${img.width}×${img.height} → ${w}×${h}`;
+  };
+  newImg.src = src;
+}
+
+// Paste
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      loadFile(item.getAsFile());
+      break;
+    }
+  }
+});
+
+async function pasteFromClipboard() {
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      for (const type of item.types) {
+        if (type.startsWith('image/')) {
+          const blob = await item.getType(type);
+          loadFile(new File([blob], 'paste.png', {type}));
+          return;
+        }
+      }
+    }
+  } catch(e) { console.log('Paste failed:', e); }
+}
+
+// Drag & drop
+const ws = $('workspace');
+ws.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+ws.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadFile(file);
+});
+
+// Drawing
+canvas.addEventListener('mousedown', e => {
+  if (!img) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  startX = (e.clientX - rect.left) * scaleX;
+  startY = (e.clientY - rect.top) * scaleY;
+
+  if (tool === 'text') {
+    const text = prompt('Enter text:');
+    if (text) {
+      annotations.push({ type:'text', x:startX, y:startY, text, color, size: lineW * 6 + 12 });
+      redoStack = [];
+      render();
+    }
+    return;
+  }
+  drawing = true;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!img) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  curX = (e.clientX - rect.left) * scaleX;
+  curY = (e.clientY - rect.top) * scaleY;
+  statusPos.textContent = `${Math.round(curX)}, ${Math.round(curY)}`;
+  if (drawing) render();
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!drawing || !img) return;
+  drawing = false;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const ex = (e.clientX - rect.left) * scaleX;
+  const ey = (e.clientY - rect.top) * scaleY;
+
+  const dx = ex - startX, dy = ey - startY;
+  if (Math.abs(dx) < 3 && Math.abs(dy) < 3 && tool !== 'number') { render(); return; }
+
+  const a = { type: tool, color, lineWidth: lineW };
+
+  if (tool === 'arrow') {
+    a.x1 = startX; a.y1 = startY; a.x2 = ex; a.y2 = ey;
+  } else if (tool === 'rect') {
+    a.x = Math.min(startX, ex); a.y = Math.min(startY, ey);
+    a.w = Math.abs(dx); a.h = Math.abs(dy);
+  } else if (tool === 'circle') {
+    a.cx = (startX + ex) / 2; a.cy = (startY + ey) / 2;
+    a.rx = Math.abs(dx) / 2; a.ry = Math.abs(dy) / 2;
+  } else if (tool === 'blur') {
+    a.x = Math.min(startX, ex); a.y = Math.min(startY, ey);
+    a.w = Math.abs(dx); a.h = Math.abs(dy);
+    a.radius = Math.max(8, lineW * 3);
+  } else if (tool === 'highlight') {
+    a.x = Math.min(startX, ex); a.y = Math.min(startY, ey);
+    a.w = Math.abs(dx); a.h = Math.abs(dy);
+  } else if (tool === 'number') {
+    a.x = startX; a.y = startY; a.num = numCounter++;
+  }
+
+  annotations.push(a);
+  redoStack = [];
+  render();
+});
+
+// Render
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (img) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  annotations.forEach(a => drawAnnotation(a));
+
+  // Preview while drawing
+  if (drawing) {
+    const preview = { type: tool, color, lineWidth: lineW };
+    if (tool === 'arrow') {
+      preview.x1 = startX; preview.y1 = startY; preview.x2 = curX; preview.y2 = curY;
+    } else if (tool === 'rect') {
+      preview.x = Math.min(startX, curX); preview.y = Math.min(startY, curY);
+      preview.w = Math.abs(curX - startX); preview.h = Math.abs(curY - startY);
+    } else if (tool === 'circle') {
+      preview.cx = (startX + curX) / 2; preview.cy = (startY + curY) / 2;
+      preview.rx = Math.abs(curX - startX) / 2; preview.ry = Math.abs(curY - startY) / 2;
+    } else if (tool === 'blur') {
+      preview.x = Math.min(startX, curX); preview.y = Math.min(startY, curY);
+      preview.w = Math.abs(curX - startX); preview.h = Math.abs(curY - startY);
+      preview.radius = Math.max(8, lineW * 3);
+    } else if (tool === 'highlight') {
+      preview.x = Math.min(startX, curX); preview.y = Math.min(startY, curY);
+      preview.w = Math.abs(curX - startX); preview.h = Math.abs(curY - startY);
+    }
+    ctx.globalAlpha = 0.6;
+    drawAnnotation(preview);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawAnnotation(a) {
+  ctx.save();
+  if (a.type === 'arrow') {
+    drawArrow(a.x1, a.y1, a.x2, a.y2, a.color, a.lineWidth);
+  } else if (a.type === 'rect') {
+    ctx.strokeStyle = a.color;
+    ctx.lineWidth = a.lineWidth;
+    ctx.strokeRect(a.x, a.y, a.w, a.h);
+  } else if (a.type === 'circle') {
+    ctx.strokeStyle = a.color;
+    ctx.lineWidth = a.lineWidth;
+    ctx.beginPath();
+    ctx.ellipse(a.cx, a.cy, Math.max(1,a.rx), Math.max(1,a.ry), 0, 0, Math.PI*2);
+    ctx.stroke();
+  } else if (a.type === 'text') {
+    ctx.fillStyle = a.color;
+    ctx.font = `bold ${a.size}px -apple-system, sans-serif`;
+    ctx.fillText(a.text, a.x, a.y);
+  } else if (a.type === 'number') {
+    const r = 16;
+    ctx.fillStyle = a.color;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a.num, a.x, a.y);
+  } else if (a.type === 'blur') {
+    const sx = Math.max(0, Math.floor(a.x));
+    const sy = Math.max(0, Math.floor(a.y));
+    const sw = Math.min(Math.floor(a.w), canvas.width - sx);
+    const sh = Math.min(Math.floor(a.h), canvas.height - sy);
+    if (sw > 0 && sh > 0) {
+      ctx.filter = `blur(${a.radius}px)`;
+      ctx.drawImage(canvas, sx, sy, sw, sh, sx, sy, sw, sh);
+      ctx.filter = 'none';
+    }
+  } else if (a.type === 'highlight') {
+    ctx.fillStyle = a.color + '55';
+    ctx.fillRect(a.x, a.y, a.w, a.h);
+  }
+  ctx.restore();
+}
+
+function drawArrow(x1, y1, x2, y2, col, lw) {
+  const headLen = Math.max(12, lw * 5);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.strokeStyle = col;
+  ctx.fillStyle = col;
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  // Arrowhead
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/6), y2 - headLen * Math.sin(angle - Math.PI/6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/6), y2 - headLen * Math.sin(angle + Math.PI/6));
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Undo / Redo
+function undo() {
+  if (!annotations.length) return;
+  redoStack.push(annotations.pop());
+  render();
+}
+function redo() {
+  if (!redoStack.length) return;
+  annotations.push(redoStack.pop());
+  render();
+}
+$('btnUndo').addEventListener('click', undo);
+$('btnRedo').addEventListener('click', redo);
+
+// Export
+function exportPNG() {
+  if (!img) return;
+  // Re-render at original resolution for export
+  const expCanvas = document.createElement('canvas');
+  expCanvas.width = img.width;
+  expCanvas.height = img.height;
+  const ectx = expCanvas.getContext('2d');
+  ectx.drawImage(img, 0, 0);
+
+  // Scale annotations from display to original
+  const sx = img.width / canvas.width;
+  const sy = img.height / canvas.height;
+  ectx.save();
+  ectx.scale(sx, sy);
+  annotations.forEach(a => {
+    // Temporarily swap ctx
+    const origCtx = ctx;
+    // We need to re-draw on ectx, so swap canvas ref for drawAnnotation
+    // Actually, let's just draw directly
+    ectx.save();
+    if (a.type === 'arrow') {
+      const headLen = Math.max(12, a.lineWidth * 5);
+      const angle = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
+      ectx.strokeStyle = a.color;
+      ectx.fillStyle = a.color;
+      ectx.lineWidth = a.lineWidth;
+      ectx.lineCap = 'round';
+      ectx.beginPath();
+      ectx.moveTo(a.x1, a.y1);
+      ectx.lineTo(a.x2, a.y2);
+      ectx.stroke();
+      ectx.beginPath();
+      ectx.moveTo(a.x2, a.y2);
+      ectx.lineTo(a.x2 - headLen*Math.cos(angle-Math.PI/6), a.y2 - headLen*Math.sin(angle-Math.PI/6));
+      ectx.lineTo(a.x2 - headLen*Math.cos(angle+Math.PI/6), a.y2 - headLen*Math.sin(angle+Math.PI/6));
+      ectx.closePath();
+      ectx.fill();
+    } else if (a.type === 'rect') {
+      ectx.strokeStyle = a.color;
+      ectx.lineWidth = a.lineWidth;
+      ectx.strokeRect(a.x, a.y, a.w, a.h);
+    } else if (a.type === 'circle') {
+      ectx.strokeStyle = a.color;
+      ectx.lineWidth = a.lineWidth;
+      ectx.beginPath();
+      ectx.ellipse(a.cx, a.cy, Math.max(1,a.rx), Math.max(1,a.ry), 0, 0, Math.PI*2);
+      ectx.stroke();
+    } else if (a.type === 'text') {
+      ectx.fillStyle = a.color;
+      ectx.font = `bold ${a.size}px -apple-system, sans-serif`;
+      ectx.fillText(a.text, a.x, a.y);
+    } else if (a.type === 'number') {
+      const r = 16;
+      ectx.fillStyle = a.color;
+      ectx.beginPath();
+      ectx.arc(a.x, a.y, r, 0, Math.PI*2);
+      ectx.fill();
+      ectx.fillStyle = '#fff';
+      ectx.font = 'bold 16px -apple-system, sans-serif';
+      ectx.textAlign = 'center';
+      ectx.textBaseline = 'middle';
+      ectx.fillText(a.num, a.x, a.y);
+    } else if (a.type === 'blur') {
+      const bsx = Math.max(0, Math.floor(a.x));
+      const bsy = Math.max(0, Math.floor(a.y));
+      const bsw = Math.min(Math.floor(a.w), canvas.width - bsx);
+      const bsh = Math.min(Math.floor(a.h), canvas.height - bsy);
+      if (bsw > 0 && bsh > 0) {
+        ectx.filter = `blur(${a.radius}px)`;
+        // Draw from the exported canvas itself (already has image)
+        const d = ectx.getImageData(bsx*sx, bsy*sy, bsw*sx, bsh*sy);
+        // Just apply blur to the region
+        ectx.drawImage(expCanvas, bsx*sx, bsy*sy, bsw*sx, bsh*sy, a.x, a.y, a.w, a.h);
+        ectx.filter = 'none';
+      }
+    } else if (a.type === 'highlight') {
+      ectx.fillStyle = a.color + '55';
+      ectx.fillRect(a.x, a.y, a.w, a.h);
+    }
+    ectx.restore();
+  });
+
+  const link = document.createElement('a');
+  link.download = 'screencap-annotated.png';
+  link.href = expCanvas.toDataURL('image/png');
+  link.click();
+}
+
+$('btnExport').addEventListener('click', exportPNG);
+
+$('btnCopy').addEventListener('click', async () => {
+  if (!img) return;
+  try {
+    const expCanvas = document.createElement('canvas');
+    expCanvas.width = canvas.width;
+    expCanvas.height = canvas.height;
+    const ectx = expCanvas.getContext('2d');
+    ectx.drawImage(canvas, 0, 0);
+    expCanvas.toBlob(async blob => {
+      await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+      alert('Copied to clipboard!');
+    });
+  } catch(e) { console.log('Copy failed:', e); }
+});
+
+})();
+</script>
+</body>
+</html>
