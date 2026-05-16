@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://screencap-studio.surge.sh/sitemap.xml
